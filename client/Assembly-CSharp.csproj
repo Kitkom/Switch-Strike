@@ -48,7 +48,6 @@
      <Compile Include="Assets\Scripts\BattleField.cs" />
      <Compile Include="Assets\Scripts\HistoryListLoader.cs" />
      <Compile Include="Assets\Scripts\NetworkEngine.cs" />
-     <Compile Include="Assets\Scripts\PlayerListLoader.cs" />
  <Reference Include="UnityEngine.UI">
  <HintPath>C:/Program Files/Unity/Editor/Data/UnityExtensions/Unity/GUISystem/UnityEngine.UI.dll</HintPath>
  </Reference>

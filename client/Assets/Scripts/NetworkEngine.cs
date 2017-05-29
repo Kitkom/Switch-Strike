@@ -1,11 +1,12 @@
-﻿ using UnityEngine;
+﻿using UnityEngine;
+using UnityEngine.UI;
 using System.Collections;
 using System;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 
-public enum NetworkEngineState {ERR, CONNECTING, CONNECTED};
+public enum NetworkEngineState {ERR, CONNECTING, CONNECTED, WORKING};
 
 public class NetworkEngine : MonoBehaviour
 {
@@ -23,15 +24,23 @@ public class NetworkEngine : MonoBehaviour
 	private Byte[] buffer;
 
 
+	//=================Get Info=============================
+	Dropdown playerList, historyList;
+	public void updatePlayerList()
+	{
+
+
+	}
+	//======================================================
+
+
 	// Use this for initialization
 	void Start()
 	{
 		buffer = new byte[bufferSize];
 		thread = new Thread(connectToServer);
-		thread.Start();
-
-
 		socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+		thread.Start();
 
 		state = NetworkEngineState.CONNECTING;
 	}
@@ -39,15 +48,9 @@ public class NetworkEngine : MonoBehaviour
 	// Update is called once per frame
 	void Update()
 	{
-		if (state == NetworkEngineState.CONNECTED)
-		{
-			blocker.SetActive(false);
-		}
-		else
-		{
-
-			blocker.SetActive(true);
-		}
+		bool unblock = false;
+		unblock |= state == NetworkEngineState.CONNECTED;
+		blocker.SetActive(!unblock);
 	}
 
 	void connectToServer()
@@ -60,7 +63,8 @@ public class NetworkEngine : MonoBehaviour
 				IPAddress ip = IPAddress.Parse(serverIp);
 				socket.Connect(new IPEndPoint(ip, serverPort));
 				Debug.Log("Connected to server");
-				break;
+				state = NetworkEngineState.CONNECTED;
+				thread.Abort();
 			}
 			catch
 			{
@@ -78,8 +82,28 @@ public class NetworkEngine : MonoBehaviour
 
 	}
 
+	public void GetHistory()
+	{
+		thread = new Thread(RecvMsg);
+		thread.Start();
+	}
+
+	void RecvMsg()
+	{
+		state = NetworkEngineState.WORKING;
+		Debug.Log("Receiving");
+		socket.Receive(buffer, 4, SocketFlags.None);
+		Debug.Log(buffer);
+		byte len = buffer[3];
+		socket.Receive(buffer, 4, len, SocketFlags.None);
+		Debug.Log(buffer);
+		state = NetworkEngineState.CONNECTED;
+		thread.Abort();
+	}
+
 	void OnDestroy()
 	{
-		thread.Abort();
+		if (thread.IsAlive)
+			thread.Abort();
 	}
 }
