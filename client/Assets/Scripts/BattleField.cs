@@ -10,26 +10,30 @@ public class BattleField : MonoBehaviour
     public GameObject[] cards;  
 	public Button[] buttons;
 	public Button submit;
-	public Text stateText;
+	public Text stateText, selfHpText, oppoHpText;
 	public LineRenderer[] lines;
     public float height;
     private bool[] lifted;
 	public BattleState state;
-	public int pressed;
-	int switcha, switchb;
+	public byte pressed;
+	public byte switcha, switchb;
 
-	int strikeFrom;
-	public int[] strike;
+    public GameObject resultBlocker;
+
+	byte strikeFrom;
+	public byte[] strike;
+
+    public bool enableResult;
 
     // Use this for initialization
     void Start()
     {
         lifted = new bool[8];
-		strike = new int[4];
+		strike = new byte[4];
 		state = BattleState.READY;
 		EnableButton(1, false);
 		EnableButton(0, true);
-		strikeFrom = pressed = switcha = switchb = -1;
+		strikeFrom = pressed = switcha = switchb = 255;
 		submit.interactable = false;
 		ResetStrike();
 		ResetArrows();
@@ -39,7 +43,7 @@ public class BattleField : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-		if (pressed != -1)
+		if (pressed != 255)
 		{
 			if (state == BattleState.READY)
 			{
@@ -68,8 +72,9 @@ public class BattleField : MonoBehaviour
 			{
 				if (pressed == 10)
 				{
-					Debug.Log("SUCC!");
-					stateText.text = "Test succeeded.";
+					stateText.text = "";
+                    engine.Action();
+                    state = BattleState.READY;
 					submit.interactable= false;
 				}
 				else
@@ -103,14 +108,33 @@ public class BattleField : MonoBehaviour
 				}
 			}
 
-			pressed = -1;
+			pressed = 255;
 		}
+        if (enableResult)
+        {
+            enableResult = false;
+            resultBlocker.SetActive(true);
+            Toggle(engine.oswitcha + 4);
+            Toggle(engine.oswitchb + 4);
+            for (int i = 0; i < 4; ++i)
+                RedirectArrow(4 + i, engine.ostrike[i]);
+            ShowArrows(true);
+        }
     }
 
 	public void SetPressed(int index)
 	{
-		pressed = index;
+		pressed = (byte)index;
 	}
+
+    public void ResetResult()
+    {
+        Toggle(engine.oswitcha);
+        Toggle(engine.oswitchb);
+        selfHpText.text = engine.selfHp.ToString();
+        oppoHpText.text = engine.oppoHp.ToString();
+        ShowArrows(false);
+    }
 
     public void Toggle(int index)
     {
@@ -120,6 +144,7 @@ public class BattleField : MonoBehaviour
             cards[index].transform.position += new Vector3(0, height, 0);
         lifted[index] = !lifted[index];
     }
+
 
 	void ResetArrows()
 	{
@@ -141,14 +166,14 @@ public class BattleField : MonoBehaviour
 	{
 		LineRenderer line = lines[a];
 		line.enabled = true;
-		line.SetPosition(1, cards[b].transform.position + new Vector3(0, 0.3, 0));
+		line.SetPosition(1, cards[b].transform.position + new Vector3(0, (float)0.3f, 0));
 	}
 
 	void ResetStrike()
 	{
 		for (int i = 0; i < 4; ++i)
 		{
-			strike[i] = -1;
+			strike[i] = 255;
 		}
 	}
 
