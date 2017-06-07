@@ -154,11 +154,24 @@ public class NetworkEngine : MonoBehaviour
 		thread.Start();
     }
 
-    void SendRequest(int header)
+     void ReceiveBattleResult()
     {
-        
+        returnToMenu = true;
+        string result = Encoding.ASCII.GetString(buffer, 0, dataLength);
+        Debug.Log(result);
+        ShowNotification(result);
+        state = NetworkEngineState.READY;
     }
 
+    public void CheckGameOver()
+    {
+        if ((selfHp == 0) || (oppoHp == 0))
+        {
+            state = NetworkEngineState.WORKING;
+            thread = new Thread(ReceiveBattleResult);
+            thread.Start();
+        }
+    }
     void SetBufferHead(byte head0, byte head1, Int16 len)
     {
         buffer[0] = head0;
@@ -223,7 +236,9 @@ public class NetworkEngine : MonoBehaviour
         if (buffer[1] == 0x13)
         {
             returnToMenu = true;
-            thread.Abort();
+            string result = Encoding.ASCII.GetString(buffer, 0, dataLength);
+            Debug.Log(result);
+            ShowNotification(result);
         }
         else
         {
@@ -321,11 +336,12 @@ public class NetworkEngine : MonoBehaviour
 
 	void GetPackage()
 	{
-		socket.Receive(buffer, 4, SocketFlags.None);
+        socket.Receive(buffer, 4, SocketFlags.None);
         Debug.Log("Received header:  " + BitConverter.ToString(buffer, 0, 4));
 		dataLength = BitConverter.ToInt16(buffer, 2);
 		dataLength = IPAddress.NetworkToHostOrder(dataLength);
-		socket.Receive(buffer, 4, dataLength, SocketFlags.None);
+        if (dataLength > 0)
+		    socket.Receive(buffer, 4, dataLength, SocketFlags.None);
         Debug.Log("Received package: " + BitConverter.ToString(buffer, 0, dataLength + 4));
 	}
 
