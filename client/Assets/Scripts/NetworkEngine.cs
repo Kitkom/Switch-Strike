@@ -257,6 +257,7 @@ public class NetworkEngine : MonoBehaviour
     void SendUserListReq()
     {
         SetBufferHead(0x91, 0x06, 0);
+        Send();
         GetPackage();
         CheckPackHead(0x06);
         int offset = 4;
