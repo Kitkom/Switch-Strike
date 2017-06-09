@@ -47,12 +47,14 @@ public class BattleField : MonoBehaviour
 		{
 			if (state == BattleState.READY)
 			{
+                ResetStrike();
 				switcha = pressed;
 				Toggle(pressed);
 				state = BattleState.SWITCH;
 			}
 			else if (state == BattleState.SWITCH)
 			{
+				Toggle(switcha);
 				if (pressed == switcha)
 				{
 					state = BattleState.READY;
@@ -60,7 +62,6 @@ public class BattleField : MonoBehaviour
 				else
 				{
 					switchb = pressed;
-					Toggle(switcha);
 					SwitchCard(switcha, switchb);
 					//ResetArrows();
 					//ShowArrows(true);
@@ -75,7 +76,7 @@ public class BattleField : MonoBehaviour
 					stateText.text = "";
                     engine.Action();
                     state = BattleState.READY;
-					submit.interactable= false;
+                    submit.gameObject.SetActive(false);
 				}
 				else
 				{
@@ -90,21 +91,26 @@ public class BattleField : MonoBehaviour
 			{
 				if (pressed  != 10)
 				{
-					strike[strikeFrom] = pressed;
-					RedirectArrow(strikeFrom, pressed);
+                    if (Mathf.Abs((int)(strikeFrom) - (int)(pressed - 4)) < 2)
+                    {
 
-					bool submitable = true;
-					foreach (int i in strike)
-					{
-						submitable &= i >= 0;
-					}
+                        strike[strikeFrom] = pressed;
+                        RedirectArrow(strikeFrom, pressed);
 
-					EnableButton(1, false);
-					EnableButton(0, true);
+                        bool submitable = true;
+                        foreach (int i in strike)
+                        {
+                            submitable &= i < 255;
+                        }
 
-					Toggle(strikeFrom);
-					submit.interactable = submitable;
-					state = BattleState.STRIKE1;
+                        EnableButton(1, false);
+                        EnableButton(0, true);
+
+                        Toggle(strikeFrom);
+                        submit.gameObject.SetActive(submitable);
+                        submit.interactable = submitable;
+                        state = BattleState.STRIKE1;
+                    }
 				}
 			}
 
@@ -114,11 +120,19 @@ public class BattleField : MonoBehaviour
         {
             enableResult = false;
             resultBlocker.SetActive(true);
+            SwitchCard(engine.oswitcha + 4, engine.oswitchb + 4);
             Toggle(engine.oswitcha + 4);
             Toggle(engine.oswitchb + 4);
             for (int i = 0; i < 4; ++i)
                 RedirectArrow(4 + i, engine.ostrike[i]);
             ShowArrows(true);
+        }
+        if (engine.refreshHp)
+        {
+            engine.refreshHp = false;
+            selfHpText.text = engine.selfHp.ToString();
+            oppoHpText.text = engine.oppoHp.ToString();
+
         }
     }
 
@@ -129,8 +143,8 @@ public class BattleField : MonoBehaviour
 
     public void ResetResult()
     {
-        Toggle(engine.oswitcha);
-        Toggle(engine.oswitchb);
+        Toggle(engine.oswitcha + 4);
+        Toggle(engine.oswitchb + 4);
         selfHpText.text = engine.selfHp.ToString();
         oppoHpText.text = engine.oppoHp.ToString();
         ShowArrows(false);

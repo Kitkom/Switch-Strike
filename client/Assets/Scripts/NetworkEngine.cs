@@ -31,6 +31,7 @@ public class NetworkEngine : MonoBehaviour
 	public NetworkEngineState state;
 	public GameObject blocker;
 	public Text blockMessage, selfNameText, enemyNameText;
+    public Button fightButton;
 
     public InputField userName, passwd;
     public BattleField battleField;
@@ -63,8 +64,10 @@ public class NetworkEngine : MonoBehaviour
 
     public Material c01, c02, c11, c12;
     public MeshRenderer[] cardMeshes;
-     
 
+    public Boolean refreshHp;
+
+    public Int32 initHp;    
 
 	//=================Get Info=============================
 	Dropdown playerList, historyList;
@@ -157,7 +160,9 @@ public class NetworkEngine : MonoBehaviour
      void ReceiveBattleResult()
     {
         returnToMenu = true;
-        string result = Encoding.ASCII.GetString(buffer, 0, dataLength);
+        GetPackage();
+        CheckPackHead(0x13);
+        string result = Encoding.ASCII.GetString(buffer, 4, dataLength);
         Debug.Log(result);
         ShowNotification(result);
         state = NetworkEngineState.READY;
@@ -183,19 +188,22 @@ public class NetworkEngine : MonoBehaviour
 
     void SendUPPack(byte head)
     {
-        byte[] userNameBuffer = Encoding.ASCII.GetBytes(userName.text);
-        byte[] passwdBuffer = Encoding.ASCII.GetBytes(passwd.text);
-        byte ulen = (byte)userNameBuffer.Length;
-        byte plen = (byte)passwdBuffer.Length;
-        dataLength = (short)(ulen + plen + 2);
-        SetBufferHead(0x91, head, dataLength);
-        buffer[4] = ulen;
-        buffer[5 + ulen] = plen;
-        System.Array.Copy(userNameBuffer, 0, buffer, 5, ulen);
-        System.Array.Copy(passwdBuffer, 0, buffer, 6 + ulen, plen);
-        Send();
-        GetPackage();
-        CheckPackHead(head);
+        if ((userName.text.Length > 0) && (passwd.text.Length > 0))
+        {
+            byte[] userNameBuffer = Encoding.ASCII.GetBytes(userName.text);
+            byte[] passwdBuffer = Encoding.ASCII.GetBytes(passwd.text);
+            byte ulen = (byte)userNameBuffer.Length;
+            byte plen = (byte)passwdBuffer.Length;
+            dataLength = (short)(ulen + plen + 2);
+            SetBufferHead(0x91, head, dataLength);
+            buffer[4] = ulen;
+            buffer[5 + ulen] = plen;
+            System.Array.Copy(userNameBuffer, 0, buffer, 5, ulen);
+            System.Array.Copy(passwdBuffer, 0, buffer, 6 + ulen, plen);
+            Send();
+            GetPackage();
+            CheckPackHead(head);
+        }
     }
 
     void SendRegister()
@@ -228,7 +236,7 @@ public class NetworkEngine : MonoBehaviour
         for (int i = 0; i < 4; ++i)
         {
             Debug.Log(i);
-            buffer[6 + i] = battleField.strike[i];
+            buffer[6 + i] = (byte)(battleField.strike[i] - 4);
         }
         Send();
 
@@ -236,7 +244,7 @@ public class NetworkEngine : MonoBehaviour
         if (buffer[1] == 0x13)
         {
             returnToMenu = true;
-            string result = Encoding.ASCII.GetString(buffer, 0, dataLength);
+            string result = Encoding.ASCII.GetString(buffer, 4, dataLength);
             Debug.Log(result);
             ShowNotification(result);
         }
@@ -292,8 +300,8 @@ public class NetworkEngine : MonoBehaviour
 
     void Send()
     {
-        socket.Send(buffer, dataLength + 4, SocketFlags.None);
-        Debug.Log("Send package:     " + BitConverter.ToString(buffer, 0, dataLength + 4));
+        int len = socket.Send(buffer, dataLength + 4, SocketFlags.None);
+        Debug.Log("Send package:     " + BitConverter.ToString(buffer, 0, len));
     }
 
     void BattlePreparation()
@@ -307,7 +315,8 @@ public class NetworkEngine : MonoBehaviour
         buffer[6] = buffer[10] = 1;
         buffer[5] = buffer[11] = 1;
         buffer[7] = buffer[9] = 2;
-        buffer[12] = 20;
+        buffer[12] = (byte)(initHp);
+        selfHp = buffer[12];
         Send();
         state = NetworkEngineState.WORKING;
         GetPackage();
@@ -316,7 +325,8 @@ public class NetworkEngine : MonoBehaviour
             oppoCard[i] = buffer[4 + i * 2] * 10 + buffer[5 + i * 2];
         oppoHp = buffer[12];
         foundOpponent = true;
-       
+
+        refreshHp = true;
         state = NetworkEngineState.READY;
     }
 
@@ -341,9 +351,10 @@ public class NetworkEngine : MonoBehaviour
         Debug.Log("Received header:  " + BitConverter.ToString(buffer, 0, 4));
 		dataLength = BitConverter.ToInt16(buffer, 2);
 		dataLength = IPAddress.NetworkToHostOrder(dataLength);
+        int len = 0;
         if (dataLength > 0)
-		    socket.Receive(buffer, 4, dataLength, SocketFlags.None);
-        Debug.Log("Received package: " + BitConverter.ToString(buffer, 0, dataLength + 4));
+		    len = socket.Receive(buffer, 4, dataLength, SocketFlags.None);
+        Debug.Log("Received package: " + BitConverter.ToString(buffer, 0, len + 4));
 	}
 
 	void CheckPackHead(Byte head)
@@ -416,6 +427,10 @@ public class NetworkEngine : MonoBehaviour
             List<string> userNames = new List<string>();
             foreach (User user in userList)
                 userNames.Add(user.name);
+            if (userList.Count == 0)
+                fightButton.interactable = false;
+            else
+                fightButton.interactable = true;
             userListDd.AddOptions(userNames);
 
         }
@@ -445,6 +460,7 @@ public class NetworkEngine : MonoBehaviour
                 if (oppoCard[i] == 12)
                     cardMeshes[i].material = c12;
             }
+            ResetCards();
             foundOpponent = false;
             goPlayerList.SetActive(false);
             goBattlePanel.SetActive(true);
@@ -524,5 +540,13 @@ public class NetworkEngine : MonoBehaviour
     {
         notificationEnable = true;
         notificationMsg = msg;
+    }
+
+    public void ResetCards()
+    {
+        cardMeshes[0].material = c01; 
+        cardMeshes[1].material = c12; 
+        cardMeshes[2].material = c02; 
+        cardMeshes[3].material = c11; 
     }
 }
