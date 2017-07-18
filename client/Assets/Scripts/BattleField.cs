@@ -24,6 +24,8 @@ public class BattleField : MonoBehaviour
 	public byte[] strike;
 
     public bool enableResult;
+    public MeshRenderer displayer;
+    private WebCamTexture wcam;
 
     // Use this for initialization
     void Start()
@@ -38,6 +40,12 @@ public class BattleField : MonoBehaviour
 		ResetStrike();
 		ResetArrows();
 		ShowArrows(false);
+
+        wcam = new WebCamTexture();
+        displayer.material.mainTexture = wcam;
+        wcam.Play();
+        
+
     }
 
     // Update is called once per frame
@@ -118,6 +126,7 @@ public class BattleField : MonoBehaviour
 		}
         if (enableResult)
         {
+            Handheld.Vibrate();
             enableResult = false;
             resultBlocker.SetActive(true);
             SwitchCard(engine.oswitcha + 4, engine.oswitchb + 4);

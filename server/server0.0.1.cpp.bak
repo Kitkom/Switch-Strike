@@ -1,0 +1,216 @@
+#include <arpa/inet.h>
+#include <sys/types.h>
+#include <time.h>
+#include <iostream>
+#include <cstring>
+#include <fstream>
+#include <sstream>
+#include <unistd.h>
+#include <mysql/mysql.h>
+#include <cstdlib>
+#include <sys/types.h>
+#include <fcntl.h>
+#include <sys/shm.h>
+#include <signal.h>
+#include <vector>
+#define cur_ver 1
+#define port 52277
+#define MAXLINE 4096
+
+using namespace std;
+struct ver_check{
+  char title;
+  char id;
+  ushort length;
+  int version;
+  void init_ver(int ver){
+    title = 0x11;
+    id = 0x01;
+    length = 0x0004;
+    version = htonl(ver);
+  }
+};
+
+struct req{
+  char title;
+  char id;
+  ushort length;
+};
+struct register_resp{
+  char title;
+  char id;
+  ushort length;
+  char resp[4];
+  void init_resp(int if_success){
+    length = sizeof(register_resp);
+    if(if_success){
+      sprintf(resp,"succ");
+    }
+    else{
+      sprintf(resp,"fail");
+    }
+    title = 0x11;
+    id = 0x02;
+  }
+};
+struct login_resp{
+  char title;
+  char id;
+  ushort length;
+  char resp;
+  void init_resp(int if_success){
+    length = sizeof(login_resp);
+    if(if_success)
+      resp=0x01;
+    else
+      resp=0x00;
+    title = 0x11;
+    id = 0x03;
+  }
+};
+struct historylist{
+  char title;
+  char id;
+  ushort length;
+};
+void do_register(){
+
+}
+void do_login(){
+
+}
+void do_server(int sockfd,sockaddr_in clientaddr){
+  MYSQL myConn;
+  mysql_init(&myConn);
+  if(mysql_real_connect(&myConn,"localhost","root","root123","game",0,NULL,CLIENT_FOUND_ROWS)){
+		cout<<"database connect succeed"<<endl;
+	}
+	mysql_set_character_set(&myConn, "gbk");
+
+  struct ver_check ver;
+  struct req req;
+  struct register_resp reg_resp;
+  struct login_resp login_resp;
+
+  char buffer[MAXLINE];
+  char mysql_querys[MAXLINE];
+
+  memset(buffer,0,sizeof(buffer));
+
+  ver.init_ver(1);
+  int recvlen,sendlen;
+  memcpy(buffer,&ver,sizeof(ver));
+  sendlen = send(sockfd,buffer,sizeof(ver),0);
+  char userlen;
+  char pwdlen;
+  char username[32];
+  char passwd[32];
+  MYSQL_RES *result;
+  MYSQL_ROW row;
+  vector<string> res;
+  while(1){
+    recvlen = recv(sockfd,buffer,sizeof(req),0);
+    memcpy((void *)&req,buffer,sizeof(req));
+    switch(req.id){
+      case 0x02://注册请求
+        recv(sockfd,&userlen,1,0);
+        recv(sockfd,username,int(userlen),0);
+        recv(sockfd,&pwdlen,1,0);
+        recv(sockfd,passwd,int(pwdlen),0);
+        //写入数据库，是否存在重名，返回
+        sprintf(mysql_querys,"select * from user where username = %s",username);
+        if( mysql_query(&myConn,mysql_querys)){//mysql_query成功返回0，失败返回非0
+          cout<<"mysql failure as mysql_query"<<endl;
+        }
+        else{
+          result = mysql_store_result(&myConn);//获取结果集
+          if(result == NULL)
+            cout<<"mysql failure at store result"<<endl;
+          res.clear();
+          //mysql_field_count 返回查询列数
+          int fieldcount = mysql_num_fields(result);
+          while(row = mysql_fetch_row(result)){
+            //mysql_num_fields 返回结果集中的字段数
+            for(int j=0; j < fieldcount; ++j){
+              if(row[j] != NULL){
+                reg_resp.init_resp(0);
+              }
+              else{
+                reg_resp.init_resp(1);
+              }
+            }
+          }
+        }
+        memcpy(buffer,&reg_resp,sizeof(reg_resp));
+        sendlen = send(sockfd,buffer,sizeof(reg_resp),0);
+      break;
+      case 0x03://登陆请求
+        recv(sockfd,&userlen,1,0);
+        recv(sockfd,username,int(userlen),0);
+        recv(sockfd,&pwdlen,1,0);
+        recv(sockfd,passwd,int(pwdlen),0);
+        sprintf(mysql_querys,"select * from user where username = %s,passwd = %s",username,passwd);
+        if(mysql_query(&myConn,mysql_querys)){
+          cout<<"mysql failure as mysql_query"<<endl;
+        }
+        else{
+          result =mysql_store_result(&myConn);
+          if(result == NULL)
+            cout<<"mysql failure at store result"<<endl;
+          res.clear();
+          //mysql_field_count 返回查询列数
+          int fieldcount = mysql_num_fields(result);
+          while(row = mysql_fetch_row(result)){
+            for(int j=0; j < fieldcount ; ++j){
+              if(row[j] == NULL)
+                login_resp.init_resp(0);
+              else
+                login_resp.init_resp(1);
+            }
+          }
+        }
+        memcpy(buffer,&login_resp,sizeof(login_resp));
+        sendlen = send(sockfd,buffer,sizeof(login_resp),0);
+      break;
+    }
+  }
+}
+int main(){
+  int res;
+  int listenfd= socket(AF_INET,SOCK_STREAM,IPPROTO_TCP);
+
+  // 定义sockaddr_in
+  struct sockaddr_in servaddr;
+  servaddr.sin_family = AF_INET;
+  servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
+  servaddr.sin_port = port;
+  if(bind(listenfd,(struct sockaddr*)&servaddr,sizeof(servaddr))==-1){
+		cout<<"cant bind target socket"<<endl;
+		exit(0);
+	}int if_listened=listen(listenfd,31);
+	if(if_listened==-1){
+		cout<<"listen failed"<<endl;
+		exit(0);
+	}
+	signal(SIGCHLD,SIG_IGN);
+  while(1){
+		struct sockaddr_in clientaddr;
+		socklen_t clientlen = sizeof(clientaddr);
+		int conn=accept(listenfd,(struct sockaddr*)&clientaddr,&clientlen);
+		if(conn<0){
+			cout<<"connection failed"<<endl;
+			exit(0);
+		}
+		cout<<"connection established"<<endl;
+		pid_t client_id;
+		if(client_id=fork()==0){
+			cout<<"child process : "<<getpid()<<" created.\n"<<endl;
+			close(listenfd);
+			do_server(conn,clientaddr);
+			exit(0);
+		}
+	}
+	//wait(NULL);
+	close(listenfd);
+	exit(0);
+}
